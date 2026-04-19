@@ -1,12 +1,12 @@
 # CBLite Browser
 
-A Couchbase Capella-style document browser for **Couchbase Lite** (`.cblite2`) databases running on Android emulators. Browse documents, inspect JSON bodies, and view metadata (version vectors, sequences, revision IDs) in real-time.
+A Couchbase Lite document browser for **Couchbase Lite** (`.cblite2`) databases running on Android emulators. Browse documents, inspect JSON bodies, and view metadata (version vectors, sequences, revision IDs) in real-time.
 
 ![CBLite Browser](https://img.shields.io/badge/Couchbase_Lite-4.x-ea2328) ![Python](https://img.shields.io/badge/Python-3.6+-3776ab) ![License](https://img.shields.io/badge/License-Apache_2.0-green)
 
 ## Features
 
-- **Capella-style UI** -- Left sidebar tree (Database > Scope > Collection), document table, modal viewer with JSON and Metadata tabs
+- **Web UI** -- Left sidebar tree (Database > Scope > Collection), document table, modal viewer with JSON and Metadata tabs
 - **Live auto-refresh** -- Pulls databases from emulators every N seconds, UI polls for changes every 2 seconds
 - **Version vector inspection** -- See version vectors, revision IDs, sequences, and flags per document
 - **Multi-emulator support** -- Auto-detects all running Android emulators
