@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CBLite Browser - Document Viewer</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f6f7; color: #333; height: 100vh; display: flex; flex-direction: column; font-size: 14px; }
+  .navbar { background: #fff; border-bottom: 1px solid #e0e0e0; padding: 0 20px; height: 48px; display: flex; align-items: center; gap: 12px; }
+  .navbar .brand { font-weight: 700; font-size: 15px; color: #ea2328; display: flex; align-items: center; gap: 6px; }
+  .navbar .nav-tabs { display: flex; gap: 0; margin-left: 24px; height: 100%; }
+  .navbar .nav-tab { padding: 0 16px; height: 100%; display: flex; align-items: center; font-size: 13px; color: #666; cursor: pointer; border-bottom: 2px solid transparent; }
+  .navbar .nav-tab.active { color: #1473e6; border-bottom-color: #1473e6; font-weight: 600; }
+  .main { flex: 1; display: flex; overflow: hidden; }
+  .sidebar { width: 260px; background: #fff; border-right: 1px solid #e0e0e0; display: flex; flex-direction: column; overflow-y: auto; }
+  .sidebar-header { padding: 12px 16px; font-size: 12px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #eee; }
+  .filter-box { padding: 8px 12px; border-bottom: 1px solid #eee; }
+  .filter-box input { width: 100%; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; outline: none; }
+  .filter-box input:focus { border-color: #1473e6; }
+  .tree-item { display: flex; align-items: center; gap: 4px; padding: 6px 12px; cursor: pointer; font-size: 13px; color: #333; }
+  .tree-item:hover { background: #f0f4ff; }
+  .tree-item.active { background: #e8f0fe; color: #1473e6; }
+  .tree-item .arrow { width: 16px; display: inline-block; font-size: 10px; transition: transform 0.15s; color: #999; }
+  .tree-item .arrow.open { transform: rotate(90deg); }
+  .tree-children { display: none; padding-left: 16px; }
+  .tree-children.open { display: block; }
+  .tree-item .count { color: #999; font-size: 11px; margin-left: auto; }
+  .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .toolbar { background: #fff; border-bottom: 1px solid #e0e0e0; padding: 16px 20px; }
+  .toolbar-selectors { display: flex; gap: 16px; margin-bottom: 12px; align-items: flex-end; }
+  .selector-group { display: flex; flex-direction: column; gap: 4px; }
+  .selector-group label { font-size: 11px; color: #666; font-weight: 600; }
+  .selector-group select { padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; background: #fff; min-width: 140px; }
+  .toolbar-filters { display: flex; gap: 12px; align-items: flex-end; }
+  .filter-group { display: flex; flex-direction: column; gap: 4px; }
+  .filter-group label { font-size: 11px; color: #666; }
+  .filter-group input, .filter-group select { padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; width: 70px; }
+  .filter-group input.wide { width: 200px; }
+  .btn-get { padding: 7px 18px; background: #fff; border: 2px solid #1473e6; color: #1473e6; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .btn-get:hover { background: #1473e6; color: #fff; }
+  .doc-count-bar { padding: 8px 20px; background: #f9f9f9; border-bottom: 1px solid #e0e0e0; font-size: 12px; color: #666; display: flex; justify-content: space-between; }
+  .page-nav { display: flex; gap: 8px; }
+  .page-nav button { background: none; border: none; cursor: pointer; font-size: 16px; color: #999; }
+  .page-nav button:hover { color: #333; }
+  .doc-table-wrap { flex: 1; overflow: auto; background: #fff; }
+  .doc-table { width: 100%; border-collapse: collapse; }
+  .doc-table th { text-align: left; padding: 10px 16px; font-size: 12px; font-weight: 600; color: #666; border-bottom: 2px solid #e0e0e0; background: #fafafa; position: sticky; top: 0; }
+  .doc-table td { padding: 10px 16px; border-bottom: 1px solid #eee; vertical-align: top; }
+  .doc-table tr:hover { background: #f8faff; }
+  .doc-id-link { color: #1473e6; text-decoration: none; font-size: 13px; cursor: pointer; word-break: break-all; }
+  .doc-id-link:hover { text-decoration: underline; }
+  .doc-preview { font-size: 12px; color: #666; font-family: 'SF Mono', monospace; max-width: 500px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .doc-delete-btn { background: none; border: none; cursor: pointer; color: #ccc; font-size: 16px; }
+  .doc-delete-btn:hover { color: #ea2328; }
+  .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 1000; align-items: center; justify-content: center; }
+  .modal-overlay.show { display: flex; }
+  .modal { background: #fff; border-radius: 8px; width: 680px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+  .modal-header { padding: 20px 24px 0; display: flex; justify-content: space-between; align-items: flex-start; }
+  .modal-header h2 { font-size: 18px; font-weight: 700; }
+  .modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: #999; }
+  .modal-close:hover { color: #333; }
+  .modal-info { padding: 12px 24px; }
+  .modal-info .info-label { font-size: 11px; color: #666; margin-bottom: 2px; }
+  .modal-info .info-value { font-size: 14px; color: #333; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; background: #fafafa; margin-bottom: 10px; word-break: break-all; }
+  .modal-tabs { display: flex; padding: 0 24px; border-bottom: 2px solid #e0e0e0; }
+  .modal-tab { padding: 10px 16px; font-size: 14px; color: #666; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+  .modal-tab.active { color: #1473e6; border-bottom-color: #1473e6; font-weight: 600; }
+  .modal-body { flex: 1; overflow: auto; }
+  .code-editor { background: #1e1e2e; color: #cdd6f4; font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 13px; line-height: 1.7; padding: 16px 0; min-height: 300px; max-height: 50vh; overflow: auto; }
+  .code-line { display: flex; }
+  .line-num { width: 45px; text-align: right; padding-right: 12px; color: #585b70; user-select: none; flex-shrink: 0; }
+  .line-content { flex: 1; padding-right: 16px; white-space: pre; }
+  .s-key { color: #89b4fa; }
+  .s-string { color: #a6e3a1; }
+  .s-number { color: #fab387; }
+  .s-bool { color: #cba6f7; }
+  .s-null { color: #9399b2; }
+  .modal-footer { padding: 16px 24px; border-top: 1px solid #e0e0e0; display: flex; gap: 12px; }
+  .btn-save { padding: 8px 20px; background: #1473e6; color: #fff; border: none; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .btn-save:hover { background: #1060c0; }
+  .btn-cancel { padding: 8px 20px; background: none; border: none; color: #1473e6; font-size: 13px; cursor: pointer; }
+  .btn-cancel:hover { text-decoration: underline; }
+  .empty-state { padding: 60px; text-align: center; color: #999; }
+  .live-badge { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; font-size: 12px; color: #666; }
+  .live-dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; }
+  .live-dot.connected { background: #22c55e; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+  .tree-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: #999; background: #f0f0f0; padding: 1px 5px; border-radius: 3px; margin-right: 4px; }
+  .tree-item.active .tree-label { background: #d6e4f7; color: #1473e6; }
+</style>
+</head>
+<body>
+
+<div class="navbar">
+  <div class="brand">CBLite Browser</div>
+  <div class="nav-tabs">
+    <a class="nav-tab active">Data Tools</a>
+  </div>
+  <div class="live-badge"><span class="live-dot" id="liveDot"></span><span id="liveStatus">Connecting...</span></div>
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-header">DATA</div>
+    <div class="filter-box"><input type="text" id="filterCollections" placeholder="Filter collections" /></div>
+    <div id="treeContainer"></div>
+  </div>
+  <div class="content">
+    <div class="toolbar">
+      <div class="toolbar-selectors">
+        <div class="selector-group"><label>Database</label><select id="selDatabase"></select></div>
+        <div class="selector-group"><label>Scope</label><select id="selScope"></select></div>
+        <div class="selector-group"><label>Collection</label><select id="selCollection"></select></div>
+      </div>
+      <div class="toolbar-filters">
+        <div class="filter-group"><label>Limit</label><input type="number" id="filterLimit" value="50" min="1" max="200" /></div>
+        <div class="filter-group"><label>Offset</label><input type="number" id="filterOffset" value="0" min="0" /></div>
+        <div class="filter-group"><label>Filter document by</label><select id="filterBy"><option>ID</option></select></div>
+        <div class="filter-group"><label>Doc ID</label><input type="text" id="filterDocId" class="wide" placeholder="Document ID..." /></div>
+        <button class="btn-get" onclick="applyFilters()">Get Documents</button>
+      </div>
+    </div>
+    <div class="doc-count-bar">
+      <span id="docCountText">0 documents</span>
+      <div class="page-nav"><button onclick="prevPage()">&lt;</button><button onclick="nextPage()">&gt;</button></div>
+    </div>
+    <div class="doc-table-wrap">
+      <table class="doc-table">
+        <thead><tr><th style="width:35%">Doc Id</th><th>Document</th><th style="width:40px"></th></tr></thead>
+        <tbody id="docTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header"><h2>Document Viewer</h2><button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-info">
+      <div class="info-label">Collection</div>
+      <div class="info-value" id="modalCollection"></div>
+      <div class="info-label">Document ID</div>
+      <div class="info-value" id="modalDocId"></div>
+    </div>
+    <div class="modal-tabs">
+      <div class="modal-tab active" id="tabJson" onclick="switchTab('json')">JSON</div>
+      <div class="modal-tab" id="tabMeta" onclick="switchTab('metadata')">Metadata</div>
+    </div>
+    <div class="modal-body"><div class="code-editor" id="codeEditor"></div></div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let CBLITE_DATA = {};
+let dbNames = [];
+let currentDb = '', currentScope = '_default', currentCollection = '_default', currentDocData = null;
+let filterLimit = 50, filterOffset = 0;
+let lastTimestamp = 0;
+const POLL_INTERVAL = 2000;
+
+async function fetchData() {
+  try {
+    const resp = await fetch('/api/data');
+    const json = await resp.json();
+    if (json.timestamp !== lastTimestamp) {
+      lastTimestamp = json.timestamp;
+      CBLITE_DATA = json.data;
+      dbNames = Object.keys(CBLITE_DATA);
+      if (!currentDb || !CBLITE_DATA[currentDb]) currentDb = dbNames[0] || '';
+      document.getElementById('liveDot').classList.add('connected');
+      const ago = Math.round((Date.now()/1000) - json.timestamp);
+      document.getElementById('liveStatus').textContent = 'Live - updated ' + ago + 's ago';
+      if (currentDb) { renderTree(); populateSelectors(); renderDocTable(); }
+      // Auto-update open modal if document revision changed
+      if (currentDocData) {
+        const fresh = CBLITE_DATA[currentDb] && CBLITE_DATA[currentDb].documents.find(d => d.id === currentDocData.id);
+        if (fresh && fresh.rev !== currentDocData.rev) {
+          currentDocData = fresh;
+          const activeTab = document.getElementById('tabMeta').classList.contains('active') ? 'metadata' : 'json';
+          switchTab(activeTab);
+        }
+      }
+    } else {
+      document.getElementById('liveDot').classList.add('connected');
+      document.getElementById('liveStatus').textContent = 'Live';
+    }
+  } catch(e) {
+    document.getElementById('liveDot').classList.remove('connected');
+    document.getElementById('liveStatus').textContent = 'Disconnected';
+  }
+}
+
+function init() { fetchData(); setInterval(fetchData, POLL_INTERVAL); }
+
+function renderTree() {
+  let html = '';
+  for (const dbName of dbNames) {
+    const db = CBLITE_DATA[dbName], short = dbName.split(' ')[0];
+    const scopes = Object.keys(db.scopes), isActive = dbName === currentDb;
+    const docCount = db.documents ? db.documents.length : 0;
+    html += '<div class="tree-item'+(isActive?' active':'')+'" onclick="selectDb(\''+dbName+'\',this)"><span class="arrow'+(isActive?' open':'')+'">&#9654;</span> <span class="tree-label">db</span><b>'+short+'</b><span class="count">'+docCount+' docs</span></div>';
+    html += '<div class="tree-children'+(isActive?' open':'')+'">';
+    for (const scope of scopes) {
+      const colls = db.scopes[scope];
+      html += '<div class="tree-item" onclick="toggleChildren(this)"><span class="arrow open">&#9654;</span> <span class="tree-label">scope</span>'+scope+'<span class="count">'+colls.length+' collection'+(colls.length>1?'s':'')+'</span></div>';
+      html += '<div class="tree-children open">';
+      for (const c of colls) {
+        const ca = isActive && scope===currentScope && c===currentCollection;
+        html += '<div class="tree-item'+(ca?' active':'')+'" onclick="selectColl(\''+dbName+'\',\''+scope+'\',\''+c+'\')"><span class="arrow" style="visibility:hidden">&#9654;</span> <span class="tree-label">col</span>'+c+'</div>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+  document.getElementById('treeContainer').innerHTML = html;
+}
+
+function toggleChildren(el) { const c = el.nextElementSibling; if(c){c.classList.toggle('open'); el.querySelector('.arrow').classList.toggle('open');} }
+function selectDb(n,el) { currentDb=n; currentScope='_default'; currentCollection='_default'; filterOffset=0; toggleChildren(el); populateSelectors(); renderTree(); renderDocTable(); }
+function selectColl(db,s,c) { currentDb=db; currentScope=s; currentCollection=c; filterOffset=0; populateSelectors(); renderTree(); renderDocTable(); }
+
+function populateSelectors() {
+  const sD=document.getElementById('selDatabase'), db=CBLITE_DATA[currentDb];
+  sD.innerHTML=dbNames.map(n=>'<option'+(n===currentDb?' selected':'')+'>'+n+'</option>').join('');
+  const sS=document.getElementById('selScope'), scopes=Object.keys(db.scopes);
+  sS.innerHTML=scopes.map(s=>'<option'+(s===currentScope?' selected':'')+'>'+s+'</option>').join('');
+  const sC=document.getElementById('selCollection'), colls=db.scopes[currentScope]||['_default'];
+  sC.innerHTML=colls.map(c=>'<option'+(c===currentCollection?' selected':'')+'>'+c+'</option>').join('');
+  sD.onchange=()=>{currentDb=sD.value;currentScope='_default';currentCollection='_default';filterOffset=0;populateSelectors();renderTree();renderDocTable();};
+  sS.onchange=()=>{currentScope=sS.value;currentCollection=(CBLITE_DATA[currentDb].scopes[currentScope]||['_default'])[0];filterOffset=0;populateSelectors();renderTree();renderDocTable();};
+  sC.onchange=()=>{currentCollection=sC.value;filterOffset=0;renderTree();renderDocTable();};
+}
+
+function getFilteredDocs() {
+  const docs=CBLITE_DATA[currentDb].documents, f=document.getElementById('filterDocId').value.trim().toLowerCase();
+  return f ? docs.filter(d=>d.id.toLowerCase().includes(f)) : docs;
+}
+
+function renderDocTable() {
+  filterLimit=parseInt(document.getElementById('filterLimit').value)||10;
+  filterOffset=parseInt(document.getElementById('filterOffset').value)||0;
+  const all=getFilteredDocs(), paged=all.slice(filterOffset,filterOffset+filterLimit);
+  document.getElementById('docCountText').textContent=all.length+' documents | limit '+filterLimit+' | offset '+filterOffset;
+  const tb=document.getElementById('docTableBody');
+  if(!paged.length){tb.innerHTML='<tr><td colspan="3" class="empty-state">No documents found</td></tr>';return;}
+  tb.innerHTML=paged.map(d=>{
+    const p=JSON.stringify(d.body), sp=p.length>80?p.substring(0,80)+'...':p;
+    return '<tr><td><a class="doc-id-link" onclick="openDoc(\''+encodeURIComponent(d.id)+'\')">'+d.id+'</a></td><td><span class="doc-preview">'+esc(sp)+'</span></td><td></td></tr>';
+  }).join('');
+}
+
+function applyFilters(){filterOffset=parseInt(document.getElementById('filterOffset').value)||0;renderDocTable();}
+function prevPage(){filterOffset=Math.max(0,filterOffset-filterLimit);document.getElementById('filterOffset').value=filterOffset;renderDocTable();}
+function nextPage(){if(filterOffset+filterLimit<getFilteredDocs().length){filterOffset+=filterLimit;document.getElementById('filterOffset').value=filterOffset;renderDocTable();}}
+
+function openDoc(eid) {
+  const id=decodeURIComponent(eid), doc=CBLITE_DATA[currentDb].documents.find(d=>d.id===id);
+  if(!doc)return; currentDocData=doc;
+  document.getElementById('modalCollection').textContent=currentDb+' . '+currentScope+' . '+currentCollection;
+  document.getElementById('modalDocId').textContent=doc.id;
+  switchTab('json');
+  document.getElementById('modalOverlay').classList.add('show');
+}
+function closeModal(){document.getElementById('modalOverlay').classList.remove('show');currentDocData=null;}
+
+function switchTab(tab) {
+  const tJ=document.getElementById('tabJson'),tM=document.getElementById('tabMeta'),ed=document.getElementById('codeEditor');
+  if(tab==='json'){tJ.classList.add('active');tM.classList.remove('active');ed.innerHTML=renderCode(JSON.stringify(currentDocData.body,null,2));}
+  else{tM.classList.add('active');tJ.classList.remove('active');
+    const meta={"xattrs":{},"meta":{"id":currentDocData.id,"rev":currentDocData.rev,"expiration":currentDocData.expiration||0,"flags":currentDocData.flags||0,"sequence":currentDocData.sequence,"versionVector":currentDocData.versionVector||""}};
+    ed.innerHTML=renderCode(JSON.stringify(meta,null,2));
+  }
+}
+
+function renderCode(json) {
+  const lines=highlight(json).split('\n');
+  return lines.map((l,i)=>'<div class="code-line"><span class="line-num">'+(i+1)+'</span><span class="line-content">'+l+'</span></div>').join('');
+}
+
+function highlight(json) {
+  let s=json.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return s.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g,function(m){
+    let c='s-number';
+    if(/^"/.test(m)){if(/:$/.test(m))return'<span class="s-key">'+m.slice(0,-1)+'</span>:';c='s-string';}
+    else if(/true|false/.test(m))c='s-bool';
+    else if(/null/.test(m))c='s-null';
+    return'<span class="'+c+'">'+m+'</span>';
+  });
+}
+
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+document.getElementById('modalOverlay').addEventListener('click',function(e){if(e.target===this)closeModal();});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeModal();});
+init();
+</script>
+</body>
+</html>

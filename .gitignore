@@ -1,0 +1,17 @@
+# Pulled databases from emulators
+/tmp/cblite_dbs/
+*.cblite2/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
